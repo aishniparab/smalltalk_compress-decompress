@@ -1,0 +1,158 @@
+implement a compression utility
+three options:
+read in a file, compress and output an output file
+read in a compressed file, output the original file
+pretend like you are going to compress it, write out the encoding table
+
+how to do huffman encoding.
+ say you had Hello, World
+ count every single character we have in there
+ H   1    -
+ e   1    -
+ l   3       
+ l        
+ o   2    -  oH     3  -  loH     6   - e,_Wrdnull!loH  16
+ ,   1    -  e,     2  -  e,_W    4   - e,_Wrdnull!     8 
+     1    -
+ W   1    -  _W     2  -   
+ o        -
+ r   1    -  rd     2  -  rdnull! 4
+ l  
+ d   1    -
+ !   1    -  null!  2  -
+ null 1   -
+
+ each of the above is a node in the tree below. 
+ the idea is - we are going to build a tree.
+ the tree is eventually going to have an encoding into it.
+ 
+   .
+  / \
+ .   .
+/ \ / \
+.  ..  .
+
+ combine these files into a single file to make your own
+  starter code - sorted collection, tree and leaf class
+ take nodes, combine them.
+ node     node    new-node 
+ 1        1       2
+ null     !       null!   
+ pop these off, replace with new node
+
+ node     node    new-node
+ 1        1       2
+ d        r       rd       --asg prefers left child but dont need to keep track of the chars like rd, _W
+
+ node     node    new-node
+ 1        1       2
+ W        _       _W
+
+ node     node    new-node
+ 1        1       2
+ e        ,       e,
+ 
+ lexographically, take the lowest one - suborder doesnt matter
+ node     node    new-node
+ 2        1       3  
+ o        H       oH
+
+ node     node    new-node
+ 2        2       4
+ e,       _W      e,_W
+
+ take lowest ones each time
+ node     node    new-node
+ 2        2       4
+ rd       null!   rdnull!
+
+ node     node    new-node
+ 3        3       6
+ l        oH      loH
+
+ node     node     new-node
+ 4        4        8
+ e,       rdnull!  e,rdnull!
+
+ node      node     new-node
+ 8         6        14
+ e,rdnull! loH      e,rdnull!loH
+
+do a depth first search
+every time we get to a leaf node, count up 
+left child will get a 0, right child will get a 1
+so go down left:
+ H 101
+ e 0000
+ l 11
+ o 100
+ , 0001
+ _ 0010
+ W 0011
+ r 0101
+ d 0100
+ ! 0111 
+ n 0110
+^this is our encoding tree
+for output print out the above but add a column with frequencies (for -t)
+to write this out: use "%3d %5d %s" print out a number, no matter how big the num is make three spaces for it.
+__H ____1 _101
+__l ____3 11 
+so char, frequency, encoding.
+
+  H    e  l  l   o    ,    _    W   o    r  l    d    !    null
+101 0000 11 11 100 0001 0010 0011 100 0101 11 0100 0111 0110
+--- ---- -
+1byte=8bits
+
+if you reach the end of file, add it manually.
+how do you know what each portion of this encoded for? you can never be confused, anytime you go down a tree,
+ the only possible encodings are the ones that go down to leaf nodes.
+higher freq single characters will have lower depth
+
+for the assignment,
+you are going to go through your file and read it once
+ count all the characters, generate the char count, node organization
+ once you have your encoding,
+ read the inputfile again and then give the complete encoding.
+this depends on whether it is -t or -c
+
+take the tree, do a depth first search (descend through it)
+when you get to a leaf, print out a 1 for everytime you hit a node and 0 when you reach the bottom.
+so 11110   e
+next node,
+   11110   ,
+   11110   _
+   11110   W
+   11110   r
+   11110   null  see **special case**
+   11110   !
+   1110    o
+   1110    H
+   110     l
+
+when generating a tree, you know its always leftmost one first
+so you can build a tree from the info above.
+store as bits in the output file (whole file should look like gibberish).
+8 bits a byte.
+
+**special case**
+in encoding, you have to do 257 chars (null being the last one)
+11110 - - - - - - - - -
+      0 0 0 0 0 0 0 0 0or1
+8 0 after encoding, suggests you have added a new single char. but the 9th bit indicates whether it is null (9th bit is 1 in this case)
+
+***
+for compression you have to write all this out, 
+for decompression you have to read all this in.
+***
+
+*look at piazza for decompression instructions from Trevor*
+
+go this way:
+figure out how to read in arguments
+identify the flags and read them in
+
+if there is an input file, print that out to screen
+read all the chars and then print out that to the screen
+

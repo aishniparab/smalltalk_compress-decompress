@@ -1,0 +1,363 @@
+#!/afs/cats.ucsc.edu/courses/cmps112-wm/usr/smalltalk/bin/gst -f
+"""
+ehobbs@unix.ucsc.edu aparab@unix.ucsc.edu
+iexecname := ’$RCSfile: outbits.st,v $’ =˜ ’.*: (.*),v.*’ at: 1.
+"""
+nl := character nl.
+
+Object subclass: Leaf [
+   |char count|
+   char [ ^ char ]
+   count [ ^ count ]
+
+   Leaf class >> new [
+      self shouldNotImplement
+   ]
+
+   Leaf class >> new: aChar count: aCount [
+      |result|
+      result := super new.
+      result setChar: aChar andCount: aCount.
+      ^result
+   ]
+
+   setChar: aChar andCount: aCount [
+      char := aChar.
+      count := aCount.
+   ]
+
+   <= other [
+      ^ (count < other count) | ((count = other count) & (char <= other char))
+   ]
+
+   printBase: aStream [
+      ^ aStream << self class << '(' << char << ',' << count
+   ]
+
+   printOn: aStream [
+      (self printBase: aStream) << ')'.
+   ]
+
+   "changed this from mackey's original leaf code, this takes in a
+    zeroarray encoding table, and this is called at the end of recursion
+    from the tree function of the same name. this updates the encoding table
+    for this leaf"
+   inorder: visitor prefix: string eTab: eTab args: Args[     
+     "visitor value: char value: string."
+   |index|
+      Args dFlag = true ifTrue:[Args outF << self char << ' ' << self count << nl.]
+
+      index := visitor char asciiValue.
+      eTab at: index put: string.
+   ]
+
+   "
+   encode: char: indexChar String: binstr [
+      "return string, and put into zeroarray"
+   ]
+  "
+]
+
+Leaf subclass: Tree [
+   |left right|
+
+   Tree class >> new: aChar count: aCount [
+      self shouldNotImplement
+   ]
+
+   Tree class >> new: aChar count: aCount left: aLeft right: aRight [
+      |result|
+      result := super new: aChar count: aCount.
+      result setLeft: aLeft andRight: aRight.
+      ^ result
+   ]
+
+   "This constructor takes in a priority queue, and spits out a new tree
+    with the leaves from thats priority queue."
+   Tree class >> new: PriQ [
+      |first second newNode newChar newCount|
+      [PriQ size > 1]whileTrue:[
+         first := PriQ removeFirst.
+         second := PriQ removeFirst.
+         newCount := first count + second count.
+         newChar := first char.
+         newNode := Tree new: newChar count: newCount left: first right: second.
+         PriQ add: newNode.
+      ]
+   ]
+
+   setLeft: aLeft andRight: aRight [
+      left := aLeft.
+      right := aRight.
+   ]
+
+   printOn: aStream [
+      (self printBase: aStream) << ',' << left << ',' << right << ')'.
+   ]
+
+   inorder: visitor prefix: string eTab: eTab args: Args[
+      Args dFlag = true ifTrue:[Args outF << self left << ' ' << self right << nl.]
+      left inorder: visitor prefix: string, '0' eTab: eTab.
+      right inorder: visitor prefix: string, '1' eTab: eTab.
+   ]
+   
+   "This will be called on a full tree, and it will return a zeroarray full of the strings
+    for encoding each ascii character"
+   encode: Args[
+   |encodeTab encodeTree|
+      encodeTab := ZeroArray new: size: 257.
+      encodeTree := PriQ removeLast.
+      "Depth First Search
+      left encode char: indexChar String: binstr + "0".
+      right encode char: indexChar String: binstr + "1".
+      "
+      self inorder: self prefix: "" eTab: encodeTab args: Args.
+      ^ encodeTab.
+   ]
+   
+]
+
+Object subclass: ZeroArray [
+   |theArray|
+
+   ZeroArray class >> new [
+      self shouldNotImplement.
+   ]
+
+   ZeroArray class >> new: size [
+      |result|
+      result := super new.
+      result init: size.
+      ^ result
+   ]
+
+   init: size [
+      theArray := Array new: size.
+   ]
+
+   size [
+      ^ theArray size.
+   ]
+
+   at: index [
+      ^ theArray at: index + 1.
+   ]
+
+   at: index put: value [
+      ^ theArray at: index + 1 put: value.
+   ]
+
+   incr: index [
+      (self at: index) isNil
+         ifTrue: [ self at: index put: 0].
+      self at: index put: (self at: index) + 1.
+   ]
+
+   keysAndValuesDo: aBlock [
+      (0 to: (self size) - 1) do: [:index |
+         aBlock value: index value: (self at: index).
+      ]
+   ]
+
+  "This method is called by the frequency table once it is filled,
+   and it returns a priority queue full of Leaves."
+  makeQueue [
+  |PriQ aLeaf aCount aChar|
+     PriQ := SortedCollection new.
+     (0 to: (self size) - 1) do: [:index |
+        aCount := self at: index.
+        [aCount = 0] ifFalse:[
+            "not sure if Character is right"
+            aChar := index Character.
+            aLeaf := Leaf new: aChar count: aCount. 
+            PriQ add: aLeaf.
+        ]
+     ]
+     ^ PriQ.
+  ]
+]
+
+Object subclass: OutBits [
+   |bitIndex currentByte myStream|
+   OutBits class >> new [
+      self shouldNotImplement.
+   ]
+   OutBits class >> new: fileStream [
+   |result|
+      result := super new.
+      result init: fileStream.
+      ^result
+   ]
+   clearByte [
+      bitIndex := 8.
+      currentByte := 0.
+   ]
+   init: fileStream [
+      myStream := fileStream.
+      self clearByte.
+   ]
+   flushByte [
+      bitIndex = 8 ifFalse: [
+      myStream nextPutByte: currentByte.
+      self clearByte.
+   ]
+   ]
+   writeBit: bit [
+      currentByte := currentByte bitAt: bitIndex put: bit.
+      bitIndex := bitIndex - 1.
+      bitIndex = 0 ifTrue: [self flushByte].
+   ]
+]
+writeBitArray := [:outfile|
+   |outBytes|
+      outBytes := OutBits new: outfile.
+      bitArray do: [:bit| outBytes writeBit: bit].
+      outBytes flushByte.
+   ].
+
+FileStream extend [
+   nl := Character nl.
+   catFile [
+      |count|
+      count := 0.
+      [self atEnd not] whileTrue: [
+         count := count + 1.
+         count asString size to: 5 do: [:skip| stdout << ' '].
+         stdout << count << ': ' << self nextLine << nl.
+      ]
+   ]
+   makeTable: ZeroArray Arguments: args[
+  "this function will read the file one character at a time, 
+   and put it into an array of size 256, creating our frequency table
+   It takes in the array as a parameter and the file to read from"
+   |currChar index value|
+   [self atEnd not] whileTrue: [
+      currChar := self next.
+      currChar = nil ifTrue: [freqTab at: 257 put: 1.]
+      ifFalse: [
+         index := currChar asciiValue.
+         value := freqTab at: index.
+         freqTab at: index put: [value + 1]. "this might need precedence"
+         args dFlag = true ifTrue:
+            [args outF << index << value.]
+      ]
+   ]
+   ]
+]
+
+Object subclass: Arguments [
+   |dFlag cFlag uFlag tFlag inF outF|
+   dFlag [ ^ dFlag ]
+   cFlag [ ^ cFlag ]
+   uFlag [ ^ uFlag ]
+   tFlag [ ^ tFlag ]
+   inF   [ ^ inF   ]
+   outF  [ ^ outF  ]
+
+   Arguments class >> new [
+      self shouldNotImplement.
+   ]
+
+   Arguments class >> new: dFlagArg cFlag: cFlagArg uFlag: uFlagArg tFlag: tFlagArg inF: infile outF: outfile [
+      dFlag := dFlagArg.
+      cFlag := cFlagArg.
+      uFlag := uFlagArg.
+      tFlag := tFlagArg.
+      inF   := FileStream open: infile mode FileStream read.
+      outF  := outfile = 'stdout' 
+               ifFalse: [FileStream open: outfile mode FileStream write.]
+               ifTrue: [outfile]
+   ]     
+
+   closeFiles [
+      self inF close.
+      self outF close.
+   ]
+
+]
+
+"MAIN"
+|Args freqTab PriQ ETree EncodeTab currChar index value|
+Smalltalk arguments size = 0
+   
+   ifTrue: [stdout << 'Not enough arguments' ]
+   ifFalse: [
+         "need to open the file in a fileStream, and then make a zeroArray thats gonna
+         be our frequency table, then call makeTable on those arguments. Next, we want to call
+         makeQueue on our frequency table, and well have a priority queue. So, we can use 
+         the Tree constuctor with this priority queue to make an entire tree. Now, on that tree, 
+         we call encode to make the encoding table. Once have our encoding table, we can loop through
+         the input file again, and encode every char."
+
+"CHANGE THIS CODE"      
+(1 to: Smalltalk arguments size)
+do: [:index |
+    argu := (Smalltalk arguments at: index).
+    (argu includes: $-) ifTrue: [
+        "The argument started with a hyphen"
+        (argu includes: $d) ifTrue: [dFlag := true.].
+        (argu includes: $c) ifTrue: [cFlag := true.].
+        (argu includes: $t) ifTrue: [tFlag := true.].
+        (argu includes: $u) ifTrue: [uFlag := true.].
+    ] ifFalse: [
+        "This assumes the next arguments are files"
+        "No testing is done for non-valid options because this is not"
+        "tested in the score files"
+        (infile isEmpty) ifTrue: [
+            infile := argu.
+        ] ifFalse: [
+            outfile :=  argu.
+        ]
+    ]
+
+"
+   
+         Args := Arguments new: Smalltalk arguments at: 2 indexOf 'd' ifAbsent : [0] = 0 not
+                         cFlag: Smalltalk arguments at: 2 indexOf 'c' ifAbsent : [0] = 0 not
+                         uFlag: Smalltalk arguments at: 2 indexOf 'u' ifAbsent : [0] = 0 not
+                         tFlag: Smalltalk arguments at: 2 indexOf 't' ifAbsent : [0] = 0 not
+                           inF: Smalltalk arguments at: 3
+                          outF: Smalltalk arguments size = 4 
+                                   ifTrue: [Smalltalk arguments at: 4]
+                                   ifFalse: [stdout]
+
+         freqTab := ZeroArray new: 257.
+         Args inF makeTable: freqTab args: Args.
+         PriQ := freqTab makeQueue.
+         ETree := Tree new: PriQ.
+         EncodeTab := ETree encode: Args.
+
+      [Args inF atEnd not] whileTrue: [
+         currChar := Args inF next.
+         "need to print out the encode bit by bit"
+         currChar = nil ifTrue: [Args outF nextPut EncodeTab at: 257.]
+         ifFalse: [
+            index := currChar asciiValue.
+            value := EncodeTab at: index.
+            Args outF nextPut value.
+         ]
+      ]
+
+"
+        "loop thru file again and print the encoded version of each char in the outfile" 
+
+         filename = '-'
+
+            ifTrue: [stdin catFile]
+            ifFalse: [
+               [
+                  |infile|
+                  infile := FileStream open: filename
+                                       mode: FileStream read.
+                  infile catFile.
+                  infile close.
+               ] on: SystemExceptions.FileError do: [:signal |
+                  |errno|
+                  errno := File errno.
+                  stdout flush.
+                  stderr << execname << ': ' << filename << ': '
+                         << signal messageText << nl.
+                  stderr flush.
+               ]
+            ]
+      ]
